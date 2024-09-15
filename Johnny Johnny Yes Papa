@@ -1,0 +1,74 @@
+from kivy.app import App
+from kivy.uix.widget import Widget
+from kivy.uix.label import Label
+from kivy.uix.button import Button
+from kivy.graphics import Color, Ellipse
+from kivy.clock import Clock
+import pyaudio  # Make sure PyAudio is compatible with your Kivy environment
+import time
+import struct
+
+# ... (Audio configuration and `is_silent` function remain the same)
+
+class JohnnyGame(Widget):
+    def __init__(self, **kwargs):
+        super(JohnnyGame, self).__init__(**kwargs)
+        self.balloon_y = self.height - 50
+        self.game_over = False
+        self.start_time = 0
+        self.elapsed_time = 0
+
+        self.start_button = Button(text="Start", on_press=self.start_game)
+        self.add_widget(self.start_button)
+
+        self.time_label = Label(text="Time: 0.00", pos=(10, 10))
+        self.add_widget(self.time_label)
+
+        # Initialize PyAudio
+        self.p = pyaudio.PyAudio()
+        self.stream = self.p.open(format=FORMAT, channels=CHANNELS, 
+                                  rate=RATE, input=True, 
+                                  frames_per_buffer=CHUNK)
+
+        Clock.schedule_interval(self.update, 1.0 / 60.0)  # 60 FPS
+
+    def start_game(self, instance):
+        if not self.game_over:
+            self.start_time = time.time()
+            self.game_over = False
+
+    def update(self, dt):
+        if not self.game_over:
+            data = self.stream.read(CHUNK)
+            if is_silent(data):
+                if self.silence_start is None:
+                    self.silence_start = time.time()
+                elif time.time() - self.silence_start > SILENCE_DURATION:
+                    self.game_over = True
+            else:
+                self.silence_start = None
+                self.elapsed_time = time.time() - self.start_time
+                self.balloon_y = max(50, self.balloon_y - 0.5)
+                self.time_label.text = f"Time: {self.elapsed_time:.2f}"
+
+        self.canvas.clear()
+        with self.canvas:
+            Color(0.639, 0.831, 0.902, 1)  # Sky blue
+            Ellipse(pos=(self.width / 2 - 30, 20), size=(60, 60))  # Sun
+            Color(1, 0, 0, 1)  # Red
+            Ellipse(pos=(self.width / 2 - 20, self.balloon_y - 20), size=(40, 40))  # Balloon
+
+        if self.game_over:
+            self.time_label.text = "Game Over!"
+
+    def on_stop(self):
+        self.stream.stop_stream()
+        self.stream.close()
+        self.p.terminate()
+
+class JohnnyApp(App):
+    def build(self):
+        return JohnnyGame()
+
+if __name__ == '__main__':
+    JohnnyApp().run()
